@@ -25,51 +25,48 @@ func rotate13(buffer []byte) {
 }
 
 func main() {
-	filePath := os.Args[1]
-	tmpFilePath :=fmt.Sprintf("%s-rot13", filePath)
-	var err error = nil
+	// fetch list of files in directory
+	err := os.Chdir(os.Args[1])
+	checkError(err)
+	files, err := os.ReadDir(".")
+	checkError(err)
+	//TODO: Add file count here
+	fmt.Printf("\nTotal %d files\n", len(files))
+	// create status structs list
+        for _, entry := range files {
+		if !entry.IsDir() {
+			encryptFile(entry.Name())
+		}
+	}
+}
 
+// Take care of error scenarios
+func encryptFile(name string) {
+	var err error = nil
+	// open file
+	filePath := fmt.Sprintf("./%s", name)
 	file, err := os.Open(filePath)
-	
-        checkError(err)
+	checkError(err)
+        
+	// create tmp
+        tmpFilePath := fmt.Sprintf("./%s-rot13", filePath)
 	tmpFile, err := os.Create(tmpFilePath)
 	checkError(err)
-
-	
-	channel := make(chan []byte)
-
-	go func () {
-           var currentReadBytesCount int = 0
-	   var bufferSize int = 500
-	   for {
-                readBuffer := make([]byte, bufferSize)
-		currentReadBytesCount, err = file.Read(readBuffer)
-		if err != nil { // it means end of file
-			fmt.Println("Reached EOF")
-			close(channel)
+	// read buffer push to channel
+	for {
+               buffer := make([]byte, 500)
+	       currentReadBytesCount, _ := file.Read(buffer)
+	       if currentReadBytesCount == 0 { // it means end of file
 			break;
-		}
-
-		if len(readBuffer) < cap(readBuffer) {
-			fmt.Println("slicing")
-			rotate13(readBuffer[:currentReadBytesCount + 1])
-		} else {
-		        rotate13(readBuffer)
-	        }
-	        channel <- readBuffer
-		
-          }
-       }()
-
-       for c := range channel {
-	       _, writeErr := tmpFile.Write(c)
+	       }
+	       rotate13(buffer) // encrypt
+               // receive buffer and write to file
+               _, writeErr := tmpFile.Write(buffer)
 	       checkError(writeErr)
-       }
-       tmpFile.Sync()
-       
-       defer os.Rename(tmpFilePath, filePath)
-       defer tmpFile.Close()
-       defer os.Remove(filePath)
-       defer file.Close()
-       fmt.Println("Encryption Completed")
+	}
+	tmpFile.Sync()
+        defer os.Rename(tmpFilePath, filePath)
+        defer tmpFile.Close()
+        defer os.Remove(filePath)
+        defer file.Close()
 }
